@@ -1,0 +1,18 @@
+# Navy Federal Budget Tracker - Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core web framework
+flask>=3.0.0
+gunicorn>=21.2.0
+
+# Twilio WhatsApp SDK
+twilio>=8.10.0
+
+# Background scheduler
+APScheduler>=3.10.0
+
+# Excel (existing)
+openpyxl>=3.1.0
+
+# Environment variables
+python-dotenv>=1.0.0
