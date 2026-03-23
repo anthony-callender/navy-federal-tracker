@@ -296,14 +296,16 @@ def upload_statement():
 
 @app.route("/import-statements", methods=["POST"])
 def import_statements():
-    """Run the PDF statement importer on all uploaded PDFs."""
-    from statement_importer import parse_pdf
-    from categorizer import Categorizer
+    """Run the PDF statement importer on all uploaded and bundled PDFs."""
+    from statement_importer import parse_pdf, STATEMENTS_DIR
 
-    if not UPLOAD_DIR.exists():
-        return jsonify({"error": "no statements uploaded yet"}), 400
+    # Collect PDFs from both the uploaded dir and the repo-bundled dir
+    pdfs = []
+    if UPLOAD_DIR.exists():
+        pdfs.extend(sorted(UPLOAD_DIR.glob("*.pdf")))
+    if STATEMENTS_DIR.exists():
+        pdfs.extend(sorted(STATEMENTS_DIR.glob("*.pdf")))
 
-    pdfs = sorted(UPLOAD_DIR.glob("*.pdf"))
     if not pdfs:
         return jsonify({"error": "no PDF files found"}), 400
 
