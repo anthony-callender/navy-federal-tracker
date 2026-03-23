@@ -43,7 +43,12 @@ ACCOUNTS = {
 # FILE PATHS
 # =============================================================================
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
+
+# On Railway with a persistent volume mounted at /data, use that.
+# Locally, fall back to the data/ folder next to this file.
+_railway_data = Path("/data")
+DATA_DIR = _railway_data if _railway_data.exists() else BASE_DIR / "data"
+
 TRANSACTIONS_FILE = DATA_DIR / "transactions.xlsx"
 
 # =============================================================================
