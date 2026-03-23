@@ -1,41 +1,51 @@
 const BASE = '/api'
 
+const getToken = () => localStorage.getItem('auth_token') || ''
+
+const h = (extra = {}) => ({ 'X-Auth-Token': getToken(), ...extra })
+const jh = () => ({ 'Content-Type': 'application/json', 'X-Auth-Token': getToken() })
+
+const req = (url, opts = {}) => fetch(url, opts).then(r => r.json())
+
 export const api = {
+  // auth
+  login: (username, password) => req(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) }),
+
   // transactions
-  getTransactions: (params = {}) => fetch(`${BASE}/transactions?` + new URLSearchParams(params)).then(r => r.json()),
-  updateTransaction: (id, body) => fetch(`${BASE}/transactions/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
+  getTransactions: (params = {}) => req(`${BASE}/transactions?` + new URLSearchParams(params), { headers: h() }),
+  updateTransaction: (id, body) => req(`${BASE}/transactions/${id}`, { method: 'PATCH', headers: jh(), body: JSON.stringify(body) }),
 
   // categories
-  getCategories: () => fetch(`${BASE}/categories`).then(r => r.json()),
-  createCategory: (body) => fetch(`${BASE}/categories`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  updateCategory: (id, body) => fetch(`${BASE}/categories/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  deleteCategory: (id) => fetch(`${BASE}/categories/${id}`, { method: 'DELETE' }).then(r => r.json()),
+  getCategories: () => req(`${BASE}/categories`, { headers: h() }),
+  createCategory: (body) => req(`${BASE}/categories`, { method: 'POST', headers: jh(), body: JSON.stringify(body) }),
+  updateCategory: (id, body) => req(`${BASE}/categories/${id}`, { method: 'PATCH', headers: jh(), body: JSON.stringify(body) }),
+  deleteCategory: (id) => req(`${BASE}/categories/${id}`, { method: 'DELETE', headers: h() }),
 
   // monthly expenses
-  getMonthlyExpenses: () => fetch(`${BASE}/monthly-expenses`).then(r => r.json()),
-  createMonthlyExpense: (body) => fetch(`${BASE}/monthly-expenses`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  updateMonthlyExpense: (id, body) => fetch(`${BASE}/monthly-expenses/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  deleteMonthlyExpense: (id) => fetch(`${BASE}/monthly-expenses/${id}`, { method: 'DELETE' }).then(r => r.json()),
+  getMonthlyExpenses: () => req(`${BASE}/monthly-expenses`, { headers: h() }),
+  createMonthlyExpense: (body) => req(`${BASE}/monthly-expenses`, { method: 'POST', headers: jh(), body: JSON.stringify(body) }),
+  updateMonthlyExpense: (id, body) => req(`${BASE}/monthly-expenses/${id}`, { method: 'PATCH', headers: jh(), body: JSON.stringify(body) }),
+  deleteMonthlyExpense: (id) => req(`${BASE}/monthly-expenses/${id}`, { method: 'DELETE', headers: h() }),
 
   // debts
-  getDebts: () => fetch(`${BASE}/debts`).then(r => r.json()),
-  createDebt: (body) => fetch(`${BASE}/debts`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  updateDebt: (id, body) => fetch(`${BASE}/debts/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
-  deleteDebt: (id) => fetch(`${BASE}/debts/${id}`, { method: 'DELETE' }).then(r => r.json()),
+  getDebts: () => req(`${BASE}/debts`, { headers: h() }),
+  createDebt: (body) => req(`${BASE}/debts`, { method: 'POST', headers: jh(), body: JSON.stringify(body) }),
+  updateDebt: (id, body) => req(`${BASE}/debts/${id}`, { method: 'PATCH', headers: jh(), body: JSON.stringify(body) }),
+  deleteDebt: (id) => req(`${BASE}/debts/${id}`, { method: 'DELETE', headers: h() }),
 
   // config
-  getConfig: (key) => fetch(`${BASE}/config/${key}`).then(r => r.json()),
-  setConfig: (key, value) => fetch(`${BASE}/config/${key}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ value }) }).then(r => r.json()),
+  getConfig: (key) => req(`${BASE}/config/${key}`, { headers: h() }),
+  setConfig: (key, value) => req(`${BASE}/config/${key}`, { method: 'PATCH', headers: jh(), body: JSON.stringify({ value }) }),
 
   // classify
-  classifyTransactions: (month) => fetch(`${BASE}/classify-transactions?month=${month}`, { method: 'POST' }).then(r => r.json()),
-  clearClassifications: (month) => fetch(`${BASE}/clear-classifications?month=${month}`, { method: 'POST' }).then(r => r.json()),
+  classifyTransactions: (month) => req(`${BASE}/classify-transactions?month=${month}`, { method: 'POST', headers: h() }),
+  clearClassifications: (month) => req(`${BASE}/clear-classifications?month=${month}`, { method: 'POST', headers: h() }),
 
   // dashboard
-  getDashboardTotals: (month) => fetch(`${BASE}/dashboard/totals?month=${month}`).then(r => r.json()),
-  getVariableByCategory: () => fetch(`${BASE}/dashboard/variable-by-category`).then(r => r.json()),
-  getMonthlyByExpense: () => fetch(`${BASE}/dashboard/monthly-by-expense`).then(r => r.json()),
-  getFreeSpending: (month) => fetch(`${BASE}/dashboard/free-spending?month=${month}`).then(r => r.json()),
-  getChartData: (offset = 0) => fetch(`${BASE}/dashboard/chart-data?offset=${offset}`).then(r => r.json()),
-  getYearlyChartData: () => fetch(`${BASE}/dashboard/chart-data/yearly`).then(r => r.json()),
+  getDashboardTotals: (month) => req(`${BASE}/dashboard/totals?month=${month}`, { headers: h() }),
+  getVariableByCategory: () => req(`${BASE}/dashboard/variable-by-category`, { headers: h() }),
+  getMonthlyByExpense: () => req(`${BASE}/dashboard/monthly-by-expense`, { headers: h() }),
+  getFreeSpending: (month) => req(`${BASE}/dashboard/free-spending?month=${month}`, { headers: h() }),
+  getChartData: (offset = 0) => req(`${BASE}/dashboard/chart-data?offset=${offset}`, { headers: h() }),
+  getYearlyChartData: () => req(`${BASE}/dashboard/chart-data/yearly`, { headers: h() }),
 }

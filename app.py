@@ -10,6 +10,9 @@ app.py - Main Flask application
     /api/debts, /api/dashboard/*
 """
 import os
+import hmac
+import hashlib
+import functools
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -26,6 +29,55 @@ app = Flask(__name__, static_folder="frontend/dist", static_url_path="")
 CORS(app)
 
 database.init_db()
+
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+
+AUTH_USERNAME = os.environ.get("AUTH_USERNAME", "")
+AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "")
+_SECRET = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+
+
+def _make_token(username: str, password: str) -> str:
+    msg = f"{username}:{password}".encode()
+    return hmac.new(_SECRET.encode(), msg, hashlib.sha256).hexdigest()
+
+
+def _valid_token(token: str) -> bool:
+    if not AUTH_USERNAME or not AUTH_PASSWORD:
+        return True  # auth not configured — open access
+    expected = _make_token(AUTH_USERNAME, AUTH_PASSWORD)
+    return hmac.compare_digest(expected, token)
+
+
+def require_auth(f):
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not AUTH_USERNAME:
+            return f(*args, **kwargs)
+        token = request.headers.get("X-Auth-Token", "")
+        if not _valid_token(token):
+            return jsonify({"error": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ---------------------------------------------------------------------------
+# Auth guard — protect all /api/* except /api/login
+# ---------------------------------------------------------------------------
+
+@app.before_request
+def check_auth():
+    if not request.path.startswith("/api/"):
+        return  # let static files and webhooks through
+    if request.path == "/api/login":
+        return  # login endpoint is public
+    if not AUTH_USERNAME:
+        return  # auth not configured
+    token = request.headers.get("X-Auth-Token", "")
+    if not _valid_token(token):
+        return jsonify({"error": "unauthorized"}), 401
 
 
 # ---------------------------------------------------------------------------
@@ -46,6 +98,18 @@ def webhook():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"}), 200
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.get_json(force=True)
+    username = data.get("username", "")
+    password = data.get("password", "")
+    if not AUTH_USERNAME:
+        return jsonify({"token": "no-auth"})
+    if username == AUTH_USERNAME and password == AUTH_PASSWORD:
+        return jsonify({"token": _make_token(username, password)})
+    return jsonify({"error": "invalid credentials"}), 401
 
 
 @app.route("/sync", methods=["POST"])

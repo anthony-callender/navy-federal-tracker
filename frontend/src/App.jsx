@@ -5,11 +5,13 @@ import TransactionsTab from './components/TransactionsTab'
 import TotalsTab from './components/TotalsTab'
 import FreeSpendingTab from './components/FreeSpendingTab'
 import SettingsTab from './components/SettingsTab'
+import LoginScreen from './components/LoginScreen'
 import { currentMonth } from './utils/formatters'
 
 const TABS = ['Transactions', 'Totals', 'Free Spending', 'Settings']
 
 export default function App() {
+  const [authed, setAuthed] = useState(!!localStorage.getItem('auth_token'))
   const [activeTab, setActiveTab] = useState(0)
   const [categories, setCategories] = useState([])
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -19,9 +21,12 @@ export default function App() {
   const refreshMonthlyExpenses = () => api.getMonthlyExpenses().then(setMonthlyExpenses)
 
   useEffect(() => {
+    if (!authed) return
     refreshCategories()
     refreshMonthlyExpenses()
-  }, [])
+  }, [authed])
+
+  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -30,12 +35,20 @@ export default function App() {
           <h1 className="text-xl font-bold">Navy Federal Budget Dashboard</h1>
           <p className="text-blue-200 text-sm">Tracking {month}</p>
         </div>
-        <input
-          type="month"
-          value={month}
-          onChange={e => setMonth(e.target.value)}
-          className="bg-[#1a3a5c] border border-blue-400 text-white rounded px-2 py-1 text-sm"
-        />
+        <div className="flex items-center gap-3">
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value)}
+            className="bg-[#1a3a5c] border border-blue-400 text-white rounded px-2 py-1 text-sm"
+          />
+          <button
+            onClick={() => { localStorage.removeItem('auth_token'); setAuthed(false) }}
+            className="text-blue-300 hover:text-white text-sm border border-blue-400 rounded px-2 py-1"
+          >
+            Sign Out
+          </button>
+        </div>
       </header>
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
       <main className="p-6">
