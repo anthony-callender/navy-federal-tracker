@@ -11,6 +11,7 @@ app.py - Main Flask application
 """
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -253,6 +254,51 @@ def api_chart_data():
     months = _last_n_months(6)
     data = database.get_chart_data(months)
     return jsonify(data)
+
+
+# ---------------------------------------------------------------------------
+# Statement import API
+# ---------------------------------------------------------------------------
+
+UPLOAD_DIR = Path(os.environ.get("DATA_DIR", "/data")) / "uploaded_statements"
+
+
+@app.route("/upload-statement", methods=["POST"])
+def upload_statement():
+    """Upload a PDF statement file to the server."""
+    if "file" not in request.files:
+        return jsonify({"error": "no file provided"}), 400
+    f = request.files["file"]
+    if not f.filename.endswith(".pdf"):
+        return jsonify({"error": "only PDF files accepted"}), 400
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    dest = UPLOAD_DIR / f.filename
+    f.save(str(dest))
+    return jsonify({"status": "uploaded", "file": f.filename}), 200
+
+
+@app.route("/import-statements", methods=["POST"])
+def import_statements():
+    """Run the PDF statement importer on all uploaded PDFs."""
+    from statement_importer import parse_pdf
+    from categorizer import Categorizer
+
+    if not UPLOAD_DIR.exists():
+        return jsonify({"error": "no statements uploaded yet"}), 400
+
+    pdfs = sorted(UPLOAD_DIR.glob("*.pdf"))
+    if not pdfs:
+        return jsonify({"error": "no PDF files found"}), 400
+
+    total_new = 0
+    results = []
+    for pdf_path in pdfs:
+        txs = parse_pdf(pdf_path)
+        new = sum(1 for tx in txs if database.save_transaction(tx))
+        total_new += new
+        results.append({"file": pdf_path.name, "parsed": len(txs), "new": new})
+
+    return jsonify({"status": "done", "total_new": total_new, "files": results})
 
 
 # ---------------------------------------------------------------------------
