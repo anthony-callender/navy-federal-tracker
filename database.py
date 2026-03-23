@@ -67,6 +67,7 @@ def init_db():
                 name TEXT UNIQUE NOT NULL,
                 expected_amount REAL DEFAULT 0,
                 category TEXT,
+                keywords TEXT DEFAULT '',
                 is_active INTEGER DEFAULT 1,
                 created_at TEXT DEFAULT (datetime('now'))
             );
@@ -94,6 +95,7 @@ def init_db():
         """)
         _seed_default_config(conn)
         _seed_categories(conn)
+        _migrate_monthly_expenses(conn)
         _seed_monthly_expenses(conn)
         conn.commit()
         print("✅ Database initialized")
@@ -105,11 +107,6 @@ def _seed_default_config(conn: sqlite3.Connection):
     """Insert default budget config values if not already present."""
     defaults = {
         "monthly_income": "4800.00",
-        "fixed_bills": json.dumps({
-            "Rent": 1580.00,
-            "Utilities": 120.00,
-            "Capital One": 450.00,
-        }),
         "alert_threshold": "200.00",
     }
     for key, value in defaults.items():
@@ -117,6 +114,13 @@ def _seed_default_config(conn: sqlite3.Connection):
             "INSERT OR IGNORE INTO budget_config (key, value) VALUES (?, ?)",
             (key, value),
         )
+
+
+def _migrate_monthly_expenses(conn: sqlite3.Connection):
+    """Add keywords column if it doesn't exist yet (migration)."""
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(monthly_expenses)").fetchall()]
+    if "keywords" not in cols:
+        conn.execute("ALTER TABLE monthly_expenses ADD COLUMN keywords TEXT DEFAULT ''")
 
 
 def _seed_categories(conn: sqlite3.Connection):
@@ -145,18 +149,25 @@ def _seed_categories(conn: sqlite3.Connection):
 def _seed_monthly_expenses(conn: sqlite3.Connection):
     """Insert default monthly expenses if not already present."""
     defaults = [
-        ("Rent", 1580.00, "Bills & Utilities"),
-        ("Utilities", 120.00, "Bills & Utilities"),
-        ("Capital One", 450.00, "Bills & Utilities"),
-        ("Phone", 70.00, "Bills & Utilities"),
-        ("Loan Payment", 170.00, "Bills & Utilities"),
-        ("Subscriptions", 100.00, "Subscriptions"),
+        ("Rent", 1580.00, "Bills & Utilities",
+         "domuso"),
+        ("Utilities", 120.00, "Bills & Utilities",
+         "northern virgini,comcast,xfinity"),
+        ("Capital One", 450.00, "Bills & Utilities",
+         "capital one"),
+        ("Phone", 70.00, "Bills & Utilities",
+         "mint mobile"),
+        ("Loan Payment", 170.00, "Bills & Utilities",
+         "loan payment"),
+        ("Subscriptions", 100.00, "Subscriptions",
+         "skool,cursor,netflix,spotify,disney,claude,anthropic,amazon prime,"
+         "google *youtube,google *capcut,godaddy,freedom.to,microsoft"),
     ]
-    for name, amount, category in defaults:
+    for name, amount, category, keywords in defaults:
         conn.execute(
-            """INSERT OR IGNORE INTO monthly_expenses (name, expected_amount, category)
-               VALUES (?, ?, ?)""",
-            (name, amount, category),
+            """INSERT OR IGNORE INTO monthly_expenses (name, expected_amount, category, keywords)
+               VALUES (?, ?, ?, ?)""",
+            (name, amount, category, keywords),
         )
 
 
@@ -446,12 +457,14 @@ def get_monthly_expenses() -> List[Dict]:
         conn.close()
 
 
-def create_monthly_expense(name: str, expected_amount: float, category: str) -> Dict:
+def create_monthly_expense(name: str, expected_amount: float, category: str,
+                           keywords: str = "") -> Dict:
     conn = get_connection()
     try:
         conn.execute(
-            "INSERT INTO monthly_expenses (name, expected_amount, category) VALUES (?, ?, ?)",
-            (name, expected_amount, category),
+            """INSERT INTO monthly_expenses (name, expected_amount, category, keywords)
+               VALUES (?, ?, ?, ?)""",
+            (name, expected_amount, category, keywords),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM monthly_expenses WHERE name = ?", (name,)).fetchone()
@@ -463,7 +476,7 @@ def create_monthly_expense(name: str, expected_amount: float, category: str) -> 
 def update_monthly_expense(me_id: int, fields: Dict) -> bool:
     conn = get_connection()
     try:
-        for col in ("name", "expected_amount", "category", "is_active"):
+        for col in ("name", "expected_amount", "category", "keywords", "is_active"):
             if col in fields:
                 conn.execute(
                     f"UPDATE monthly_expenses SET {col} = ? WHERE id = ?",
@@ -484,6 +497,119 @@ def delete_monthly_expense(me_id: int) -> bool:
         )
         conn.commit()
         return True
+    finally:
+        conn.close()
+
+
+def classify_transactions(month: str) -> Dict:
+    """
+    Match transactions for a month against monthly expense keywords.
+    Links matches via transaction_monthly_link.
+    Returns { matched: int, total_checked: int }.
+    """
+    conn = get_connection()
+    try:
+        # Get active monthly expenses with keywords
+        expenses = conn.execute(
+            "SELECT id, name, keywords FROM monthly_expenses WHERE is_active = 1"
+        ).fetchall()
+
+        # Get all debit transactions for the month that aren't already linked
+        txs = conn.execute(
+            """SELECT t.id, t.merchant, t.description
+               FROM transactions t
+               LEFT JOIN transaction_monthly_link tml ON t.id = tml.transaction_id
+               WHERE t.date LIKE ? AND t.transaction_type = 'debit'
+               AND tml.transaction_id IS NULL""",
+            (f"{month}%",),
+        ).fetchall()
+
+        matched = 0
+        for tx in txs:
+            search_text = f"{tx['merchant'] or ''} {tx['description'] or ''}".lower()
+            for exp in expenses:
+                kw_str = exp["keywords"] or ""
+                keywords = [k.strip().lower() for k in kw_str.split(",") if k.strip()]
+                if any(kw in search_text for kw in keywords):
+                    conn.execute(
+                        """INSERT OR REPLACE INTO transaction_monthly_link
+                           (transaction_id, monthly_expense_id) VALUES (?, ?)""",
+                        (tx["id"], exp["id"]),
+                    )
+                    matched += 1
+                    break  # first match wins
+
+        conn.commit()
+        return {"matched": matched, "total_checked": len(txs)}
+    finally:
+        conn.close()
+
+
+def clear_classifications(month: str) -> int:
+    """Remove all monthly expense links for transactions in the given month."""
+    conn = get_connection()
+    try:
+        result = conn.execute(
+            """DELETE FROM transaction_monthly_link
+               WHERE transaction_id IN (
+                   SELECT id FROM transactions WHERE date LIKE ?
+               )""",
+            (f"{month}%",),
+        )
+        conn.commit()
+        return result.rowcount
+    finally:
+        conn.close()
+
+
+def get_fixed_spending(month: str) -> float:
+    """Sum of debit transactions linked to a monthly expense for the month."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """SELECT COALESCE(SUM(t.amount), 0) as total
+               FROM transactions t
+               JOIN transaction_monthly_link tml ON t.id = tml.transaction_id
+               WHERE t.date LIKE ? AND t.transaction_type = 'debit'""",
+            (f"{month}%",),
+        ).fetchone()
+        return round(row["total"], 2)
+    finally:
+        conn.close()
+
+
+def get_variable_spending(month: str) -> float:
+    """Sum of debit transactions NOT linked to any monthly expense."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """SELECT COALESCE(SUM(t.amount), 0) as total
+               FROM transactions t
+               LEFT JOIN transaction_monthly_link tml ON t.id = tml.transaction_id
+               WHERE t.date LIKE ? AND t.transaction_type = 'debit'
+               AND tml.transaction_id IS NULL""",
+            (f"{month}%",),
+        ).fetchone()
+        return round(row["total"], 2)
+    finally:
+        conn.close()
+
+
+def get_variable_by_category(month: str) -> Dict[str, float]:
+    """Variable spending (unlinked) grouped by category."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT t.category, SUM(t.amount) as total
+               FROM transactions t
+               LEFT JOIN transaction_monthly_link tml ON t.id = tml.transaction_id
+               WHERE t.date LIKE ? AND t.transaction_type = 'debit'
+               AND tml.transaction_id IS NULL
+               GROUP BY t.category
+               ORDER BY total DESC""",
+            (f"{month}%",),
+        ).fetchall()
+        return {r["category"]: round(r["total"], 2) for r in rows}
     finally:
         conn.close()
 

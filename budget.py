@@ -1,7 +1,11 @@
 """
 Budget Calculator - Computes free-to-spend and spending breakdown
+
+Free to Spend = Income - Fixed (classified transactions) - Variable (unclassified)
+
+"Fixed" = sum of debit transactions linked to a monthly expense
+"Variable" = sum of debit transactions NOT linked to any monthly expense
 """
-import json
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -13,41 +17,29 @@ def get_current_month() -> str:
 
 
 def get_budget_status(month: Optional[str] = None) -> Dict:
-    """
-    Calculate current budget status for the given month.
-
-    Returns:
-        {
-            month, income, fixed_bills, total_fixed,
-            spending_by_category, total_variable, free_to_spend
-        }
-    """
     if not month:
         month = get_current_month()
 
-    # Configured monthly income
+    # Income: use actual deposits or fall back to configured income
     income_config = database.get_config("monthly_income")
     configured_income = float(income_config) if income_config else 4800.0
-
-    # Use the higher of configured income or actual deposits this month
     actual_income = database.get_income(month)
     income = actual_income if actual_income > 0 else configured_income
 
-    # Fixed bills from config
-    fixed_bills_json = database.get_config("fixed_bills")
-    fixed_bills: Dict[str, float] = json.loads(fixed_bills_json) if fixed_bills_json else {}
-    total_fixed = sum(fixed_bills.values())
+    # Fixed = transactions classified as monthly expenses
+    total_fixed = database.get_fixed_spending(month)
 
-    # Variable spending this month by category
-    spending_by_category = database.get_spending_by_category(month)
-    total_variable = sum(spending_by_category.values())
+    # Variable = unclassified debit transactions
+    total_variable = database.get_variable_spending(month)
+
+    # Spending breakdown (variable only, by category)
+    spending_by_category = database.get_variable_by_category(month)
 
     free_to_spend = income - total_fixed - total_variable
 
     return {
         "month": month,
         "income": round(income, 2),
-        "fixed_bills": fixed_bills,
         "total_fixed": round(total_fixed, 2),
         "spending_by_category": spending_by_category,
         "total_variable": round(total_variable, 2),

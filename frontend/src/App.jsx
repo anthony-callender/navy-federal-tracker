@@ -42,7 +42,7 @@ export default function App() {
         {activeTab === 0 && <TransactionsTab month={month} categories={categories} monthlyExpenses={monthlyExpenses} />}
         {activeTab === 1 && <TotalsTab month={month} />}
         {activeTab === 2 && <FreeSpendingTab month={month} />}
-        {activeTab === 3 && <SettingsTab categories={categories} monthlyExpenses={monthlyExpenses} onRefreshCategories={refreshCategories} onRefreshMonthlyExpenses={refreshMonthlyExpenses} />}
+        {activeTab === 3 && <SettingsTab month={month} categories={categories} monthlyExpenses={monthlyExpenses} onRefreshCategories={refreshCategories} onRefreshMonthlyExpenses={refreshMonthlyExpenses} />}
       </main>
     </div>
   )

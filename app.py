@@ -160,9 +160,10 @@ def api_me_create():
     name = data.get("name", "").strip()
     amount = float(data.get("expected_amount", 0))
     category = data.get("category", "Bills & Utilities")
+    keywords = data.get("keywords", "")
     if not name:
         return jsonify({"error": "name required"}), 400
-    me = database.create_monthly_expense(name, amount, category)
+    me = database.create_monthly_expense(name, amount, category, keywords)
     return jsonify(me), 201
 
 
@@ -177,6 +178,22 @@ def api_me_update(me_id):
 def api_me_delete(me_id):
     database.delete_monthly_expense(me_id)
     return jsonify({"status": "deleted"})
+
+
+@app.route("/api/classify-transactions", methods=["POST"])
+def api_classify():
+    """Match transactions to monthly expenses using keywords."""
+    month = request.args.get("month", datetime.now().strftime("%Y-%m"))
+    result = database.classify_transactions(month)
+    return jsonify(result)
+
+
+@app.route("/api/clear-classifications", methods=["POST"])
+def api_clear_classifications():
+    """Remove all monthly expense links for a month."""
+    month = request.args.get("month", datetime.now().strftime("%Y-%m"))
+    cleared = database.clear_classifications(month)
+    return jsonify({"cleared": cleared})
 
 
 # ---------------------------------------------------------------------------
