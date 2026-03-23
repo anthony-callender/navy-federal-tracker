@@ -292,9 +292,22 @@ def api_free_spending():
 
 @app.route("/api/dashboard/chart-data", methods=["GET"])
 def api_chart_data():
-    months = _last_n_months(6)
+    # ?offset=0 means most recent 6 months; offset=1 means 6 months before that, etc.
+    offset = int(request.args.get("offset", 0))
+    all_months = database.get_all_months()
+    if not all_months:
+        return jsonify([])
+    end = max(0, len(all_months) - offset * 6)
+    start = max(0, end - 6)
+    months = all_months[start:end]
     data = database.get_chart_data(months)
-    return jsonify(data)
+    return jsonify({"data": data, "has_prev": start > 0, "has_next": offset > 0, "total_months": len(all_months)})
+
+
+@app.route("/api/dashboard/chart-data/yearly", methods=["GET"])
+def api_chart_data_yearly():
+    data = database.get_yearly_chart_data()
+    return jsonify({"data": data, "has_prev": False, "has_next": False, "total_months": len(data)})
 
 
 # ---------------------------------------------------------------------------

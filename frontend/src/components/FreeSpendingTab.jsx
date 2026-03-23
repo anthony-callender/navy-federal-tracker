@@ -37,15 +37,28 @@ export default function FreeSpendingTab({ month }) {
   const [debts, setDebts] = useState([])
   const [chartData, setChartData] = useState([])
   const [chartType, setChartType] = useState('bar')
+  const [viewMode, setViewMode] = useState('monthly') // 'monthly' | 'yearly'
+  const [offset, setOffset] = useState(0)
+  const [hasPrev, setHasPrev] = useState(false)
+  const [hasNext, setHasNext] = useState(false)
   const [showDebtModal, setShowDebtModal] = useState(false)
+
+  const loadChart = (mode, off) => {
+    if (mode === 'yearly') {
+      api.getYearlyChartData().then(r => { setChartData(r.data); setHasPrev(false); setHasNext(false) })
+    } else {
+      api.getChartData(off).then(r => { setChartData(r.data); setHasPrev(r.has_prev); setHasNext(r.has_next) })
+    }
+  }
 
   const load = () => {
     api.getFreeSpending(month).then(setStatus)
     api.getDebts().then(setDebts)
-    api.getChartData().then(setChartData)
+    loadChart(viewMode, offset)
   }
 
   useEffect(() => { load() }, [month])
+  useEffect(() => { loadChart(viewMode, offset) }, [viewMode, offset])
 
   const handleAddDebt = async (body) => {
     await api.createDebt(body)
@@ -109,37 +122,60 @@ export default function FreeSpendingTab({ month }) {
 
       {/* Chart */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
           <h3 className="font-semibold text-gray-800">Income vs Spending</h3>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {/* View mode */}
+            {['monthly','yearly'].map(v => (
+              <button key={v} onClick={() => { setViewMode(v); setOffset(0) }}
+                className={`px-3 py-1 rounded text-sm capitalize ${viewMode === v ? 'bg-[#1a3a5c] text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
+                {v}
+              </button>
+            ))}
+            <div className="w-px bg-gray-200 mx-1" />
+            {/* Chart type */}
             {['bar','line'].map(t => (
               <button key={t} onClick={() => setChartType(t)}
                 className={`px-3 py-1 rounded text-sm capitalize ${chartType === t ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
                 {t}
               </button>
             ))}
+            {/* Pagination — only shown in monthly mode */}
+            {viewMode === 'monthly' && (
+              <>
+                <div className="w-px bg-gray-200 mx-1" />
+                <button onClick={() => setOffset(o => o + 1)} disabled={!hasPrev}
+                  className="px-3 py-1 rounded text-sm border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-30">← Older</button>
+                <button onClick={() => setOffset(o => Math.max(0, o - 1))} disabled={!hasNext}
+                  className="px-3 py-1 rounded text-sm border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-30">Newer →</button>
+              </>
+            )}
           </div>
         </div>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={320}>
           {chartType === 'bar' ? (
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
+              <YAxis yAxisId="left" tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
+              <YAxis yAxisId="right" orientation="right" tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
               <Tooltip formatter={v => fmt(v)} />
               <Legend />
-              <Bar dataKey="income" name="Income" fill="#22c55e" />
-              <Bar dataKey="spending" name="Spending" fill="#ef4444" />
+              <Bar yAxisId="left" dataKey="income" name="Income" fill="#22c55e" />
+              <Bar yAxisId="left" dataKey="spending" name="Spending" fill="#ef4444" />
+              <Line yAxisId="right" type="monotone" dataKey="balance" name="Balance" stroke="#1a3a5c" strokeWidth={2} dot />
             </BarChart>
           ) : (
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
-              <YAxis tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
+              <YAxis yAxisId="left" tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
+              <YAxis yAxisId="right" orientation="right" tickFormatter={v => `$${(v/1000).toFixed(1)}k`} />
               <Tooltip formatter={v => fmt(v)} />
               <Legend />
-              <Line type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2} dot />
-              <Line type="monotone" dataKey="spending" name="Spending" stroke="#ef4444" strokeWidth={2} dot />
+              <Line yAxisId="left" type="monotone" dataKey="income" name="Income" stroke="#22c55e" strokeWidth={2} dot />
+              <Line yAxisId="left" type="monotone" dataKey="spending" name="Spending" stroke="#ef4444" strokeWidth={2} dot />
+              <Line yAxisId="right" type="monotone" dataKey="balance" name="Balance" stroke="#1a3a5c" strokeWidth={2} dot />
             </LineChart>
           )}
         </ResponsiveContainer>

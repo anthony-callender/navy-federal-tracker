@@ -788,10 +788,43 @@ def get_monthly_by_expense_pivot(months: List[str]) -> Dict:
         conn.close()
 
 
-def get_chart_data(months: List[str]) -> List[Dict]:
-    """Income vs total spending per month for chart."""
+def get_all_months() -> List[str]:
+    """Return all months that have transactions, in ascending order."""
     conn = get_connection()
     try:
+        rows = conn.execute(
+            "SELECT DISTINCT substr(date,1,7) as month FROM transactions ORDER BY month"
+        ).fetchall()
+        return [r["month"] for r in rows]
+    finally:
+        conn.close()
+
+
+def get_chart_data(months: List[str]) -> List[Dict]:
+    """Income vs spending per month, plus running balance up to end of each month."""
+    conn = get_connection()
+    try:
+        # Compute running balance from the very beginning up to each month
+        all_months = [
+            r["month"] for r in conn.execute(
+                "SELECT DISTINCT substr(date,1,7) as month FROM transactions ORDER BY month"
+            ).fetchall()
+        ]
+
+        # Build cumulative balance up to and including each month in `months`
+        running = 0.0
+        running_map = {}
+        for m in all_months:
+            row = conn.execute(
+                """SELECT
+                     COALESCE(SUM(CASE WHEN transaction_type='credit' THEN amount ELSE 0 END), 0) -
+                     COALESCE(SUM(CASE WHEN transaction_type='debit'  THEN amount ELSE 0 END), 0) AS net
+                   FROM transactions WHERE date LIKE ?""",
+                (f"{m}%",),
+            ).fetchone()
+            running += row["net"]
+            running_map[m] = round(running, 2)
+
         result = []
         for month in months:
             income_row = conn.execute(
@@ -808,6 +841,35 @@ def get_chart_data(months: List[str]) -> List[Dict]:
                 "month": month,
                 "income": round(income_row["total"], 2),
                 "spending": round(spending_row["total"], 2),
+                "balance": running_map.get(month, 0),
+            })
+        return result
+    finally:
+        conn.close()
+
+
+def get_yearly_chart_data() -> List[Dict]:
+    """Income vs spending per calendar year, plus running balance at year end."""
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT
+                 substr(date,1,4) as year,
+                 COALESCE(SUM(CASE WHEN transaction_type='credit' THEN amount ELSE 0 END), 0) as income,
+                 COALESCE(SUM(CASE WHEN transaction_type='debit'  THEN amount ELSE 0 END), 0) as spending
+               FROM transactions
+               GROUP BY year ORDER BY year"""
+        ).fetchall()
+
+        result = []
+        running = 0.0
+        for r in rows:
+            running += r["income"] - r["spending"]
+            result.append({
+                "month": r["year"],
+                "income": round(r["income"], 2),
+                "spending": round(r["spending"], 2),
+                "balance": round(running, 2),
             })
         return result
     finally:

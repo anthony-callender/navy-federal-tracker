@@ -36,5 +36,6 @@ export const api = {
   getVariableByCategory: () => fetch(`${BASE}/dashboard/variable-by-category`).then(r => r.json()),
   getMonthlyByExpense: () => fetch(`${BASE}/dashboard/monthly-by-expense`).then(r => r.json()),
   getFreeSpending: (month) => fetch(`${BASE}/dashboard/free-spending?month=${month}`).then(r => r.json()),
-  getChartData: () => fetch(`${BASE}/dashboard/chart-data`).then(r => r.json()),
+  getChartData: (offset = 0) => fetch(`${BASE}/dashboard/chart-data?offset=${offset}`).then(r => r.json()),
+  getYearlyChartData: () => fetch(`${BASE}/dashboard/chart-data/yearly`).then(r => r.json()),
 }
