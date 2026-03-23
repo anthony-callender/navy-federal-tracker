@@ -96,8 +96,9 @@ def extract_merchant(detail: str) -> Tuple[str, Optional[str]]:
         return m.group(1).strip()[:50], "credit"
 
     # POS Debit with "Transaction MM-DD-YY MERCHANT"
+    # OCR can break "Debit Card" → "Debit Car d", "Debit C ard", etc.
     m = re.match(
-        r"POS Debit[-\s]+Debit Card\s+\d+\s+Transaction\s+\d{2}-\d{2}-\d{2}\s+(.+)",
+        r"POS Debit[-\s]+De?b?i?t?\s*C\s*a?\s*r?\s*d?\s+\d+\s+Transaction\s+\d{2}-\d{2}-\d{2}\s+(.+)",
         d, re.I
     )
     if m:
@@ -105,7 +106,15 @@ def extract_merchant(detail: str) -> Tuple[str, Optional[str]]:
 
     # POS Debit with "MM-DD-YY MERCHANT"
     m = re.match(
-        r"POS Debit[-\s]+Debit Card\s+\d+\s+\d{2}-\d{2}-\d{2}\s+(.+)",
+        r"POS Debit[-\s]+De?b?i?t?\s*C\s*a?\s*r?\s*d?\s+\d+\s+\d{2}-\d{2}-\d{2}\s+(.+)",
+        d, re.I
+    )
+    if m:
+        return _clean_pos(m.group(1)), None
+
+    # Fallback: any POS Debit line with a date pattern and merchant after it
+    m = re.match(
+        r"POS Debit\s*[-–]?\s*.*?\d+\s+(?:Transaction\s+)?\d{2}-\d{2}-\d{2}\s+(.+)",
         d, re.I
     )
     if m:
