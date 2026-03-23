@@ -59,12 +59,14 @@ def manual_sync():
 # ---------------------------------------------------------------------------
 
 def _last_n_months(n: int = 6):
-    months = []
     now = datetime.now()
+    months = []
     for i in range(n - 1, -1, -1):
-        d = datetime(now.year, now.month, 1) - timedelta(days=i * 30)
-        months.append(d.strftime("%Y-%m"))
-    return sorted(set(months))
+        # Step back i months correctly using year/month arithmetic
+        total = now.year * 12 + (now.month - 1) - i
+        y, m = divmod(total, 12)
+        months.append(f"{y}-{m + 1:02d}")
+    return months
 
 
 # ---------------------------------------------------------------------------
