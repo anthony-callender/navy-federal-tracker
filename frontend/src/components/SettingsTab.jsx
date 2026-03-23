@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api'
 import { fmt } from '../utils/formatters'
 
@@ -7,6 +7,19 @@ export default function SettingsTab({ month, categories, monthlyExpenses, onRefr
   const [newMe, setNewMe] = useState({ name: '', expected_amount: '', category: 'Bills & Utilities', keywords: '' })
   const [classifyStatus, setClassifyStatus] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [income, setIncome] = useState('')
+  const [incomeSaved, setIncomeSaved] = useState(false)
+
+  useEffect(() => {
+    api.getConfig('monthly_income').then(r => { if (r.value) setIncome(r.value) })
+  }, [])
+
+  const handleSaveIncome = async (e) => {
+    e.preventDefault()
+    await api.setConfig('monthly_income', income)
+    setIncomeSaved(true)
+    setTimeout(() => setIncomeSaved(false), 2000)
+  }
 
   const handleAddCategory = async (e) => {
     e.preventDefault()
@@ -62,6 +75,33 @@ export default function SettingsTab({ month, categories, monthlyExpenses, onRefr
 
   return (
     <div className="space-y-8 max-w-4xl">
+      {/* Monthly Income */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="px-4 py-3 border-b border-gray-200">
+          <h3 className="font-semibold text-gray-800">Monthly Income</h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Your expected take-home pay each month. Used to calculate Free to Spend.
+          </p>
+        </div>
+        <form onSubmit={handleSaveIncome} className="px-4 py-4 flex gap-3 items-end">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Monthly Take-Home ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={income}
+              onChange={e => setIncome(e.target.value)}
+              placeholder="e.g. 4800"
+              className="border border-gray-300 rounded px-2 py-1.5 text-sm w-36"
+            />
+          </div>
+          <button type="submit" className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700">
+            Save
+          </button>
+          {incomeSaved && <span className="text-sm text-green-700 bg-green-50 px-3 py-1.5 rounded">Saved!</span>}
+        </form>
+      </div>
+
       {/* Transaction Classification */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-4 py-3 border-b border-gray-200">

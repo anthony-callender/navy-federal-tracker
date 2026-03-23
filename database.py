@@ -562,6 +562,18 @@ def clear_classifications(month: str) -> int:
         conn.close()
 
 
+def get_expected_fixed() -> float:
+    """Sum of expected_amount from all active monthly expenses."""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(expected_amount), 0) as total FROM monthly_expenses WHERE is_active = 1"
+        ).fetchone()
+        return round(row["total"], 2)
+    finally:
+        conn.close()
+
+
 def get_fixed_spending(month: str) -> float:
     """Sum of debit transactions linked to a monthly expense for the month."""
     conn = get_connection()

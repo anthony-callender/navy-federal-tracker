@@ -1,10 +1,10 @@
 """
 Budget Calculator - Computes free-to-spend and spending breakdown
 
-Free to Spend = Income - Fixed (classified transactions) - Variable (unclassified)
+Free to Spend = Configured Income - Expected Fixed Bills - Variable Spending So Far
 
-"Fixed" = sum of debit transactions linked to a monthly expense
-"Variable" = sum of debit transactions NOT linked to any monthly expense
+"Fixed" = sum of expected_amount from active monthly expenses (what you plan to pay)
+"Variable" = actual debit transactions NOT classified as a monthly expense
 """
 from datetime import datetime
 from typing import Dict, Optional
@@ -20,16 +20,14 @@ def get_budget_status(month: Optional[str] = None) -> Dict:
     if not month:
         month = get_current_month()
 
-    # Income: use actual deposits or fall back to configured income
+    # Income: always use the configured monthly income
     income_config = database.get_config("monthly_income")
-    configured_income = float(income_config) if income_config else 4800.0
-    actual_income = database.get_income(month)
-    income = actual_income if actual_income > 0 else configured_income
+    income = float(income_config) if income_config else 0.0
 
-    # Fixed = transactions classified as monthly expenses
-    total_fixed = database.get_fixed_spending(month)
+    # Fixed = total expected amount from all active monthly expenses
+    total_fixed = database.get_expected_fixed()
 
-    # Variable = unclassified debit transactions
+    # Variable = unclassified debit transactions so far this month
     total_variable = database.get_variable_spending(month)
 
     # Spending breakdown (variable only, by category)

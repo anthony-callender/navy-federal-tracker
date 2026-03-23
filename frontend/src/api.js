@@ -23,6 +23,10 @@ export const api = {
   updateDebt: (id, body) => fetch(`${BASE}/debts/${id}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json()),
   deleteDebt: (id) => fetch(`${BASE}/debts/${id}`, { method: 'DELETE' }).then(r => r.json()),
 
+  // config
+  getConfig: (key) => fetch(`${BASE}/config/${key}`).then(r => r.json()),
+  setConfig: (key, value) => fetch(`${BASE}/config/${key}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ value }) }).then(r => r.json()),
+
   // classify
   classifyTransactions: (month) => fetch(`${BASE}/classify-transactions?month=${month}`, { method: 'POST' }).then(r => r.json()),
   clearClassifications: (month) => fetch(`${BASE}/clear-classifications?month=${month}`, { method: 'POST' }).then(r => r.json()),

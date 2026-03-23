@@ -238,6 +238,28 @@ def api_debts_delete(debt_id):
 
 
 # ---------------------------------------------------------------------------
+# Config API
+# ---------------------------------------------------------------------------
+
+@app.route("/api/config/<key>", methods=["GET"])
+def api_config_get(key):
+    value = database.get_config(key)
+    if value is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"key": key, "value": value})
+
+
+@app.route("/api/config/<key>", methods=["PATCH"])
+def api_config_set(key):
+    data = request.get_json(force=True)
+    value = data.get("value")
+    if value is None:
+        return jsonify({"error": "value required"}), 400
+    database.set_config(key, str(value))
+    return jsonify({"status": "updated"})
+
+
+# ---------------------------------------------------------------------------
 # Dashboard API
 # ---------------------------------------------------------------------------
 
